@@ -1,0 +1,15 @@
+/*UserInput*/
+#aside{
+    display: flex;
+    justify-content: center;
+    /*align-items: center;*/
+    height: 1200px;
+    width: 550px
+}
+
+#aside-card{
+    width: 500px;
+    height: 500px;
+    margin-top: 20px;
+    margin-left: 25px
+}
