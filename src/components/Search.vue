@@ -4,7 +4,6 @@
       <!-- 导航栏 -->
       <el-menu :default-active="activeIndex" class="el-menu-demo" mode="horizontal">
         <el-menu-item index="1" style="font-size: large" @click="show_1=true">检索论文</el-menu-item>
-<!--                <el-menu-item index="2" style="font-size: large" @click="show_1=false">分析关系</el-menu-item>-->
       </el-menu>
     </el-header>
     <!-- 检索论文 -->
@@ -12,55 +11,37 @@
       <!-- 参数输入 -->
       <el-aside style="height: 1200px; width: 550px">
         <!-- 搜索框 -->
-        <el-card style="width: 500px;height: 500px;margin-top: 20px;margin-left: 25px">
-          <p class="demonstration" style="margin-left: 10px">1. 输入关键词，多个关键词请以空格区分</p>
+        <el-card style="width: 500px;height: 1150px;margin: 20px 0 10px 30px;">
+          <h3 class="demonstration" style="margin-left: 10px">1. 输入关键词，多个关键词请以空格区分</h3>
           <div style="">
             <el-input type="text" placeholder="请输入论文标题的关键词，以空格分隔" v-model="key_input"
-                      style="width: 390px"></el-input>
-            <el-button icon="el-icon-search" @click="searchPaper"></el-button>
+                      style="width: 390px;height: 40px"></el-input>
+            <el-button @click="searchPaper" style="height: 40px">搜索</el-button>
           </div>
           <div>
-            <p class="demonstration" style="margin-left: 10px">2. 选择开始年份、结束年份、近X期期刊</p>
+            <h3 class="demonstration" style="margin-left: 10px">2. 选择开始年份、结束年份、最近X期</h3>
             <div style="margin-top: 20px; display: flex;">
               <div style="margin-left: 0px">
-                <el-select v-model="start_year" placeholder="开始年份" style="width: 120px">
-                  <el-option
-                      v-for="item in year_options"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value">
-                  </el-option>
-                </el-select>
+                <el-select v-model="start_year" placeholder="开始年份" style="width: 120px" size="large"><el-option v-for="item in year_options" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                 <span>&nbsp;</span>
-                <el-select v-model="final_year" placeholder="结束年份" style="width: 120px">
-                  <el-option
-                      v-for="item in year_options"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value">
-                  </el-option>
-                </el-select>
+                <el-select v-model="final_year" placeholder="结束年份" style="width: 120px" size="large"><el-option v-for="item in year_options" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                 <span>&nbsp;</span>
-                <el-select v-model="vols" placeholder="近X期" style="width: 100px">
-                  <el-option
-                      v-for="item in volume_options"
-                      :key="item.value"
-                      :label="item.label"
-                      :value="item.value">
-                  </el-option>
-                </el-select>
+                <el-select v-model="vols" placeholder="最近X期" style="width: 100px" size="large"><el-option v-for="item in volume_options" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
               </div>
             </div>
-            <p class="demonstration" style="margin-left: 10px">3. 选择会议/期刊</p>
+            <h3 class="demonstration" style="margin-left: 10px">3. 选择会议/期刊</h3>
             <el-cascader
+                size="large"
+                :filterable="true"
                 :collapse-tags="true"
-                :options="options"
+                :options="jc_options"
                 :props="props"
                 v-model="selectedTag"
                 @change="handleCaChange"
                 style="width: 450px;"
+                placeholder="可输入字符进行搜索"
                 clearable></el-cascader>
-            <p class="demonstration" style="margin-left: 10px">4. 匹配模式</p>
+            <h3 class="demonstration" style="margin-left: 10px">4. 匹配模式</h3>
             <div style="margin-top: 10px;margin-left: 10px">
               <el-radio v-model="match_pattern" label="1">包含任一关键词、不限制独立单词</el-radio>
               <el-radio v-model="match_pattern" label="2">包含任一关键词、限制独立单词</el-radio>
@@ -70,172 +51,55 @@
 
           </div>
         </el-card>
-        <el-card style="width: 500px;height: 200px;margin-top: 10px;margin-left: 25px">
-          <div>
-            <p class="demonstration" style="margin-left: 10px">根据作者dblp_url查询</p>
-            <div style="">
-              <el-input type="text" placeholder="请输入作者主页的url" v-model="url_input"
-                        style="width: 390px"></el-input>
-              <el-button icon="el-icon-search" @click="get_people"></el-button>
-            </div>
-          </div>
-        </el-card>
-
       </el-aside>
+
       <!-- 论文展示表格 -->
-      <el-card style="margin-top: 20px;width: 1900px;height: 1150px">
-        <el-button type="success" @click="exportExcel(table1Data)">导出为 Excel</el-button>
-        <el-main style="height: 1050px;margin-top: 25px" v-show="show_paper_url">
-          <el-table
-              v-loading="table1_loading"
-              element-loading-text="拼命检索中"
-              :data="table1Data"
-              style="width: 100%;margin-top: 10px;font-size: medium">
-            <el-table-column :sortable=true
-                             prop="id"
-                             label="编号"
-                             width="100">
-            </el-table-column>
-            <el-table-column :sortable=true
-                             prop="authors"
-                             label="作者"
-                             width="650">
-            </el-table-column>
-            <el-table-column
-                :sortable=true
-                prop="conference_or_article"
-                label="会议/期刊"
-                width="150">
-            </el-table-column>
-            <el-table-column
-                :sortable=true
-                prop="year_or_volume"
-                label="年份/卷号"
-                width="150">
-            </el-table-column>
-            <el-table-column
-                v-show="show_paper_url"
-                :sortable=true
-                prop="title"
-                label="标题">
-              <template v-slot="scope">
-                <a :href="scope.row.paper_url" target="_blank">{{ scope.row.title }}</a>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-main>
-        <el-main style="height: 1150px;margin-top: 25px" v-show="!show_paper_url">
-          <el-table
-              v-loading="table1_loading"
-              element-loading-text="拼命检索中"
-              :data="table1Data"
-              style="width: 100%;margin-top: 10px;font-size: medium">
-            <el-table-column :sortable=true
-                             prop="id"
-                             label="编号"
-                             width="100">
-            </el-table-column>
-            <el-table-column :sortable=true
-                             prop="authors"
-                             label="作者"
-                             width="650">
-            </el-table-column>
-            <el-table-column
-                :sortable=true
-                prop="year"
-                label="年份/卷号"
-                width="150">
-            </el-table-column>
-            <el-table-column
-                :sortable=true
-                prop="title"
-                label="标题">
-              <template v-slot="scope">
-                <a :href="scope.row.doi" target="_blank">{{ scope.row.title }}</a>
-              </template>
-            </el-table-column>
-          </el-table>
+      <el-card style="margin-top: 20px;width: 1950px;height: 1150px" v-show="table1empty">
+        <el-empty style="margin-top: 20px;width: 1950px;height: 1150px" description="暂无数据"></el-empty>
+      </el-card>
+
+      <el-card style="margin-top: 20px;width: 1950px;height: 1150px" v-show="!table1empty">
+        <div style="display: flex">
+          <el-pagination
+              style="margin: 5px 0 0 10px"
+              @size-change="handleSizeChange"
+              @current-change="handleCurrentChange"
+              :page-count="pageCount"
+              :current-page="currentPage"
+              :page-sizes="pageSizes"
+              :page-size="pageSize"
+              layout="total, sizes, prev, pager, next, jumper"
+              :total="table1Data.length">
+          </el-pagination>
+          <el-button  style="margin: 5px 0 0 25px" round type="success" plain @click="exportExcel(table1Data)">导出为 Excel</el-button>
+        </div>
+
+        <el-main style="height: 1050px;margin-top: 10px; padding: 0" v-show="show_paper_url">
+          <el-card v-for="paper in displayedPapers" :key="paper.id" shadow="hover"
+                   style="margin:10px 0 10px 0;border-radius: 10px;padding: 0">
+            <div style="display: flex; overflow: auto; margin: 0;padding: 0">
+              <h3 style="margin:0;padding: 0" >{{ paper.title }}</h3>
+              <a style="margin-left:5px;" :href="paper.paper_url" target="_blank"> DOI.</a>
+            </div>
+<!--            <p style="margin:10px 0 0 0;padding: 0" >{{ paper.authors }}</p>-->
+            <p style="margin:10px 0 0 0;padding: 0">
+              <a style="text-decoration: none;color: black;" v-for="(author, index) in paper.authors" :key="author.url" :href="author.url" target="_blank"><span>{{author.name}}</span><span v-if="index < paper.authors.length - 1">,&nbsp;</span></a>
+            </p>
+            <p style="margin:10px 0 0 0;padding: 0;" >
+              <span style="font-style: italic;font-weight: bold">{{paper.conference_or_article}}&nbsp;</span>
+              <span style="margin: 0 5px 0 5px">{{paper.year_or_volume}}</span>
+            </p>
+          </el-card>
         </el-main>
       </el-card>
 
 
     </el-container>
-    <!-- 分析关系 -->
-    <el-container v-show="!show_1">
-      <el-aside style="height: 1200px; width: 550px;margin-top: 10px">
-        <el-card style="width: 500px;height: 200px;margin-top: 10px;margin-left: 25px">
-          <p class="demonstration" style="margin-left: 10px">查询与作者相关的人物</p>
-          <div>
-            <el-input type="text" placeholder="请输入作者主页的url" v-model="root_url"
-                      style="width: 400px"></el-input>
-            <el-button icon="el-icon-search" @click="get"></el-button>
-            <el-button type="success" @click="exportExcel(table2Data)" style="margin-top: 20px" v-show="showExport1">导出为
-              Excel
-            </el-button>
-          </div>
-        </el-card>
-      </el-aside>
-      <el-card style="margin-top: 20px;width: 1900px;height: 1150px">
-        <el-main>
-          <div class="card-container" style="height: 1100px" v-show="!homepage">
-            <el-card v-for="item in table2Data" :key="item.name" class="card-item" shadow="hover">
-              <div class="clearfix">
-                <span>{{ item.name }}</span>
-                <el-button style="float: right; padding: 3px 0" type="text" @click="authorHome(item)">主页
-                </el-button>
-              </div>
-              <div class="card-info">论文数量： {{ item.paper_count }}</div>
-              <div class="card-info">合作者数量： {{ item.coauthor_count }}</div>
-              <div class="card-info">导师： {{ item.tutor_name }}</div>
-              <div class="card-info">首篇论文年份： {{ item.first_paper_year }}</div>
-              <div class="card-info">是被查询人的： {{ item.relationship }}</div>
-              <!--            <div class="card-info">分组： {{ item.group }}</div>-->
-            </el-card>
-          </div>
-          <el-main style="height: 1150px;margin-top: 25px" v-show="homepage">
-            <el-button icon="el-icon-back" @click="fff"></el-button>
-            <el-button type="success" @click="exportExcel(table3Data)">导出为 Excel</el-button>
-            <el-table
-                v-loading="table1_loading"
-                element-loading-text="拼命检索中"
-                :data="table3Data"
-                style="width: 100%;margin-top: 10px;font-size: medium">
-              <el-table-column :sortable=true
-                               prop="id"
-                               label="编号"
-                               width="100">
-              </el-table-column>
-              <el-table-column :sortable=true
-                               prop="authors"
-                               label="作者"
-                               width="650">
-              </el-table-column>
-              <el-table-column
-                  :sortable=true
-                  prop="year"
-                  label="年份/卷号"
-                  width="150">
-              </el-table-column>
-              <el-table-column
-                  :sortable=true
-                  prop="title"
-                  label="标题">
-                <template v-slot="scope">
-                  <a :href="scope.row.doi" target="_blank">{{ scope.row.title }}</a>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-main>
-        </el-main>
-      </el-card>
-
-    </el-container>
-
-
   </el-container>
 </template>
 
 <script>
+// import { el-cascader__search-input } from '@element-plus/icons-vue'
 import * as XLSX from "xlsx";
 import axios from "axios";
 
@@ -251,12 +115,16 @@ axios.defaults.transformRequest = [function (data) {
 
 export default {
   name: "MyRetrieval",
+  components:{
+    // SearchICON,
+  },
   data() {
     return {
+      table1empty: true,
       props: {multiple: true},
-      selectedTag: [],
-      options: [
-              {
+      selectedTag: [['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ASPLOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'DAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'EUROSYS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'FAST'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'HPCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ISCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'MICRO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'PPOPP'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'SC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'USENIX'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TACO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TPDS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CGO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CLOUD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CLUSTER'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CODESISSS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'DATE'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'FPGA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HIPEAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HOTCHIPS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICDCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'PODC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'SPAA']],
+      jc_options: [
+      {
         'value': '1.计算机体系结构、并行与分布计算、存储系统',
         'label': '1.计算机体系结构、并行与分布计算、存储系统',
         'children': [{
@@ -465,26 +333,27 @@ export default {
           }]
         }]
       },]
-
-      //         [{'value': '人工智能论文库', 'label': '人工智能论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'AAAI', 'label': 'AAAI'}, {'value': 'ACL', 'label': 'ACL'}, {'value': 'CVPR', 'label': 'CVPR'}, {'value': 'ICCV', 'label': 'ICCV'}, {'value': 'ICML', 'label': 'ICML'}, {'value': 'IJCAI', 'label': 'IJCAI'}, {'value': 'NIPS', 'label': 'NIPS'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'AI', 'label': 'AI'}, {'value': 'IJCV', 'label': 'IJCV'}, {'value': 'JMLR', 'label': 'JMLR'}, {'value': 'PAMI', 'label': 'PAMI'}]}]}, {'value': '体系结构论文库', 'label': '体系结构论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ASPLOS', 'label': 'ASPLOS'}, {'value': 'DAC', 'label': 'DAC'}, {'value': 'EUROSYS', 'label': 'EUROSYS'}, {'value': 'FAST', 'label': 'FAST'}, {'value': 'HPCA', 'label': 'HPCA'}, {'value': 'ISCA', 'label': 'ISCA'}, {'value': 'MICRO', 'label': 'MICRO'}, {'value': 'PPOPP', 'label': 'PPOPP'}, {'value': 'SC', 'label': 'SC'}, {'value': 'USENIX', 'label': 'USENIX'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TACO', 'label': 'TACO'}, {'value': 'TC', 'label': 'TC'}, {'value': 'TCAD', 'label': 'TCAD'}, {'value': 'TOCS', 'label': 'TOCS'}, {'value': 'TOS', 'label': 'TOS'}, {'value': 'TPDS', 'label': 'TPDS'}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'CGO', 'label': 'CGO'}, {'value': 'CLOUD', 'label': 'CLOUD'}, {'value': 'CLUSTER', 'label': 'CLUSTER'}, {'value': 'CODESISSS', 'label': 'CODESISSS'}, {'value': 'DATE', 'label': 'DATE'}, {'value': 'EUROPAR', 'label': 'EUROPAR'}, {'value': 'FPGA', 'label': 'FPGA'}, {'value': 'HIPEAC', 'label': 'HIPEAC'}, {'value': 'HOTCHIPS', 'label': 'HOTCHIPS'}, {'value': 'HPDC', 'label': 'HPDC'}, {'value': 'ICCAD', 'label': 'ICCAD'}, {'value': 'ICCD', 'label': 'ICCD'}, {'value': 'ICDCS', 'label': 'ICDCS'}, {'value': 'ICPP', 'label': 'ICPP'}, {'value': 'ICS', 'label': 'ICS'}, {'value': 'IEEEPACT', 'label': 'IEEEPACT'}, {'value': 'IPPS', 'label': 'IPPS'}, {'value': 'ITC', 'label': 'ITC'}, {'value': 'LISA', 'label': 'LISA'}, {'value': 'MSS', 'label': 'MSS'}, {'value': 'PERFORMANCE', 'label': 'PERFORMANCE'}, {'value': 'PODC', 'label': 'PODC'}, {'value': 'RTAS', 'label': 'RTAS'}, {'value': 'SIGMETRICS', 'label': 'SIGMETRICS'}, {'value': 'SPAA', 'label': 'SPAA'}, {'value': 'VEE', 'label': 'VEE'}]}]}, {'value': '数据库、数据挖掘、内容检索论文库', 'label': '数据库、数据挖掘、内容检索论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ICDE', 'label': 'ICDE'}, {'value': 'KDD', 'label': 'KDD'}, {'value': 'SIGIR', 'label': 'SIGIR'}, {'value': 'SIGMOD', 'label': 'SIGMOD'}, {'value': 'VLDB', 'label': 'VLDB'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TKDE', 'label': 'TKDE'}, {'value': 'TODS', 'label': 'TODS'}, {'value': 'TOIS', 'label': 'TOIS'}, {'value': 'VLDB', 'label': 'VLDB'}]}]}, {'value': '网络与信息安全论文库', 'label': '网络与信息安全论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'CCS', 'label': 'CCS'}, {'value': 'CRYPTO', 'label': 'CRYPTO'}, {'value': 'EUROCRYPT', 'label': 'EUROCRYPT'}, {'value': 'NDSS', 'label': 'NDSS'}, {'value': 'SP', 'label': 'SP'}, {'value': 'USS', 'label': 'USS'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'JOC', 'label': 'JOC'}, {'value': 'TDSC', 'label': 'TDSC'}, {'value': 'TIFS', 'label': 'TIFS'}]}]}, {'value': '计算机图形学与多媒体论文库', 'label': '计算机图形学与多媒体论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'MM', 'label': 'MM'}, {'value': 'VISUALIZATION', 'label': 'VISUALIZATION'}, {'value': 'VR', 'label': 'VR'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TIP', 'label': 'TIP'}, {'value': 'TOG', 'label': 'TOG'}, {'value': 'TVCG', 'label': 'TVCG'}]}]}, {'value': '计算机网络论文库', 'label': '计算机网络论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'INFOCOM', 'label': 'INFOCOM'}, {'value': 'MOBICOM', 'label': 'MOBICOM'}, {'value': 'NSDI', 'label': 'NSDI'}, {'value': 'SIGCOMM', 'label': 'SIGCOMM'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'JSAC', 'label': 'JSAC'}, {'value': 'TMC', 'label': 'TMC'}, {'value': 'TON', 'label': 'TON'}]}]}, {'value': '软件工程、系统软件、程序设计语言论文库', 'label': '软件工程、系统软件、程序设计语言论文库', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ICSE', 'label': 'ICSE'}, {'value': 'ISSTA', 'label': 'ISSTA'}, {'value': 'KBSE', 'label': 'KBSE'}, {'value': 'OOPSLA', 'label': 'OOPSLA'}, {'value': 'OSDI', 'label': 'OSDI'}, {'value': 'PLDI', 'label': 'PLDI'}, {'value': 'POPL', 'label': 'POPL'}, {'value': 'SIGSOFT', 'label': 'SIGSOFT'}, {'value': 'SOSP', 'label': 'SOSP'}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TOPLAS', 'label': 'TOPLAS'}, {'value': 'TOSEM', 'label': 'TOSEM'}, {'value': 'TSC', 'label': 'TSC'}, {'value': 'TSE', 'label': 'TSE'}]}]}]
-      ,
-
+        ,
       show_1: true,
 
       activeIndex: '1',
 
       year_options: [],
-      start_year: '2018',
+      start_year: '2015',
       final_year: '2023',
 
       volume_options: [],
-      vols: '5',
+      vols: '10',
 
-      key_input: '',
+      key_input: 'MU-RMW',
 
       url_input: '',//'https://dblp.uni-trier.de/pid/332/3372.html',
 
       table1Data: [],
+      currentPage: 1, // 当前页
+      pageCount : 0,
+      pageSize : 0,
+      pageSizes: [10, 20, 50, 100, 500, 1000], // 每页显示的数据条数
       //[{'title': 'NobLSM: an LSM-tree with non-blocking writes for SSDs.', 'authors': 'Haoran Dang, Chongnan Ye, Yanpeng Hu, Chundong Wang', 'year': 2022, 'conference_or_article': 'DAC', 'paper_url': 'https://doi.org/10.1145/3489517.3530470', 'id': 0}, {'title': 'Integrating LSM Trees With Multichip Flash Translation Layer for Write-Efficient KVSSDs.', 'authors': 'Sung-Ming Wu, Kai-Hsiang Lin, Li-Pin Chang', 'year': 40, 'conference_or_article': 'TCAD', 'paper_url': 'https://doi.org/10.1109/TCAD.2020.2987781', 'id': 1}, {'title': 'LLSM: A Lifetime-Aware Wear-Leveling for LSM-Tree on NAND Flash Memory.', 'authors': 'Dharamjeet, Yi-Shen Chen, Tseng-Yi Chen, Yuan-Hung Kuan, Yuan-Hao Chang', 'year': 41, 'conference_or_article': 'TCAD', 'paper_url': 'https://doi.org/10.1109/TCAD.2022.3197542', 'id': 2}, {'title': 'Tidal-Tree-Mem: Toward Read-Intensive Key-Value Stores With Tidal Structure Based on LSM-Tree.', 'authors': 'Chenlin Ma, Hao Yang, Shangyu Wu, Yi Wang, Rui Mao', 'year': 42, 'conference_or_article': 'TCAD', 'paper_url': 'https://doi.org/10.1109/TCAD.2022.3177575', 'id': 3}, {'title': 'KVSTL: An Application Support to LSM-Tree Based Key-Value Store via Shingled Translation Layer Data Management.', 'authors': 'Shuo-Han Chen, Yuhong Liang, Ming-Chang Yang', 'year': 71, 'conference_or_article': 'TC', 'paper_url': 'https://doi.org/10.1109/TC.2021.3098961', 'id': 4}],
 
       table1_loading: false,
@@ -504,10 +373,27 @@ export default {
     }
   },
 
+  computed: {
+    displayedPapers() {
+      const start = (this.currentPage - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      if (this.table1Data.length>0){
+        return this.table1Data.slice(start, end);
+      }
+      return []
+    },
+  },
+
   methods: {
-    fff(){
-      this.homepage=false;
-      this.showExport1=true
+
+    handleSizeChange(val) {
+      this.pageSize = val
+      this.pageCount = Math.ceil(this.table1Data.length / this.pageSize)
+    },
+
+    // 控制论文结果翻页
+    handleCurrentChange(page) {
+      this.currentPage = page;
     },
 
     exportExcel(data) {
@@ -544,15 +430,12 @@ export default {
         this.$message({message: "检索会议或期刊不能为空", type: "warning"})
         return
       }
-      console.log(this.conference_option)
       this.table1_loading = true
       axios({
         method: 'post',
         url: 'http://172.31.225.109:5000/search',
         data: {
           key_words: this.key_input,
-          conference_list: this.conference_option,
-          journal_list: this.journal_option,
           start_year: this.start_year,
           final_year: this.final_year,
           vols: this.vols,
@@ -562,6 +445,14 @@ export default {
       }).then((res) => {
         console.log(res.data)
         this.table1Data = res.data
+        this.pageCount = 1
+        this.pageSize = this.table1Data.length
+        if (this.table1Data.length>0){
+          this.table1empty = false
+        }else {
+          this.$message({message: "没有检索到相关数据", type: "info"})
+          this.table1Data = true
+        }
       }).catch(() => {
         this.$message("数据异常，请重试")
       }).finally(() => {
@@ -651,19 +542,29 @@ export default {
   },
 
   mounted() {
-    for (let i = 2023; i >= 2000; i--) {
+    for (let i = 2023; i >= 1950; i--) {
       this.year_options.push({
         value: i.toString(),
         label: i.toString()
       });
     }
 
-    for (let i = 10; i >= 0; i--) {
+    for (let i = 1; i <= 100; i++) {
       this.volume_options.push({
         value: i.toString(),
         label: i.toString()
       });
     }
+
+    // axios({
+    //   method: 'get',
+    //   url: 'http://172.31.225.109:5001/jcoptions',
+    // }).then((res) => {
+    //   console.log(res.data)
+    //   this.jc_options = res.data
+    // }).catch(() => {
+    //   this.$message("数据异常，请重试")
+    // })
 
     this.homepage = false
     if (this.show_1 === true) {
@@ -671,10 +572,6 @@ export default {
     } else {
       this.activeIndex = '2'
     }
-  },
-
-  created() {
-
   }
 }
 </script>
