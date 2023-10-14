@@ -1,9 +1,9 @@
 <template>
-  <el-container>
+  <el-container v-loading="loading" element-loading-text="正在检索">
     <el-header>
       <!-- 导航栏 -->
       <el-menu :default-active="activeIndex" class="el-menu-demo" mode="horizontal">
-        <el-menu-item index="1" style="font-size: large" @click="show_1=true">检索论文</el-menu-item>
+        <el-menu-item index="1" style="font-size: larger" @click="show_1=true">检索论文</el-menu-item>
       </el-menu>
     </el-header>
     <!-- 检索论文 -->
@@ -15,13 +15,13 @@
           <h3 class="demonstration" style="margin-left: 10px">1. 输入关键词，多个关键词请以空格区分</h3>
           <div style="">
             <el-input type="text" placeholder="请输入论文标题的关键词，以空格分隔" v-model="key_input"
-                      style="width: 390px;height: 40px"></el-input>
+                      style="width: 390px;height: 40px;" @keyup.enter="searchPaper"></el-input>
             <el-button @click="searchPaper" style="height: 40px">搜索</el-button>
           </div>
           <div>
             <h3 class="demonstration" style="margin-left: 10px">2. 选择开始年份、结束年份、最近X期</h3>
             <div style="margin-top: 20px; display: flex;">
-              <div style="margin-left: 0px">
+              <div style="margin-left: 0">
                 <el-select v-model="start_year" placeholder="开始年份" style="width: 120px" size="large"><el-option v-for="item in year_options" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
                 <span>&nbsp;</span>
                 <el-select v-model="final_year" placeholder="结束年份" style="width: 120px" size="large"><el-option v-for="item in year_options" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
@@ -29,7 +29,8 @@
                 <el-select v-model="vols" placeholder="最近X期" style="width: 100px" size="large"><el-option v-for="item in volume_options" :key="item.value" :label="item.label" :value="item.value"></el-option></el-select>
               </div>
             </div>
-            <h3 class="demonstration" style="margin-left: 10px">3. 选择会议/期刊</h3>
+            <h3 class="demonstration" style="margin-left: 10px">3. 选择会议/期刊<el-checkbox style="margin-left: 10px" size="large" v-model="selectAllChecked" @change="selectAllOptions">全选</el-checkbox></h3>
+<!--            -->
             <el-cascader
                 size="large"
                 :filterable="true"
@@ -71,6 +72,14 @@
               layout="total, sizes, prev, pager, next, jumper"
               :total="table1Data.length">
           </el-pagination>
+          <el-select style="margin: 5px 0 0 10px;width: 150px" v-model="selectedSort" @change="handleSortChange" placeholder="选择排序方式">
+            <el-option
+                v-for="option in sortOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+            ></el-option>
+          </el-select>
           <el-button  style="margin: 5px 0 0 25px" round type="success" plain @click="exportExcel(table1Data)">导出为 Excel</el-button>
         </div>
 
@@ -78,16 +87,18 @@
           <el-card v-for="paper in displayedPapers" :key="paper.id" shadow="hover"
                    style="margin:10px 0 10px 0;border-radius: 10px;padding: 0">
             <div style="display: flex; overflow: auto; margin: 0;padding: 0">
-              <h3 style="margin:0;padding: 0" >{{ paper.title }}</h3>
-              <a style="margin-left:5px;" :href="paper.paper_url" target="_blank"> DOI.</a>
+              <h3 style="margin:0;padding: 0;" >{{ paper.title }}</h3>
+              <a style="margin-left:5px;" :href="paper.doi" target="_blank"> DOI.</a>
             </div>
-<!--            <p style="margin:10px 0 0 0;padding: 0" >{{ paper.authors }}</p>-->
+<!--            <p style="margin:10px 0 0 0;padding: 0" >{{ paper.authors_str }}</p>-->
             <p style="margin:10px 0 0 0;padding: 0">
               <a style="text-decoration: none;color: black;" v-for="(author, index) in paper.authors" :key="author.url" :href="author.url" target="_blank"><span>{{author.name}}</span><span v-if="index < paper.authors.length - 1">,&nbsp;</span></a>
             </p>
             <p style="margin:10px 0 0 0;padding: 0;" >
               <span style="font-style: italic;font-weight: bold">{{paper.conference_or_article}}&nbsp;</span>
               <span style="margin: 0 5px 0 5px">{{paper.year_or_volume}}</span>
+              <span v-if="paper.publisher" style="font-style: italic;margin: 0 5px 0 5px">{{paper.publisher}}</span>
+              <span v-if="paper.year" style="margin: 0 5px 0 5px">{{paper.year}}</span>
             </p>
           </el-card>
         </el-main>
@@ -120,220 +131,14 @@ export default {
   },
   data() {
     return {
+      selectAllChecked:false,
+      loading:false,
+      selectedSort: "",
+      sortOptions: [{label: "无", value: "none"},{ label: '按会议/期刊排序', value: 'jcname' }, { label: '按论文标题排序', value: 'title' }],
       table1empty: true,
       props: {multiple: true},
-      selectedTag: [['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ASPLOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'DAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'EUROSYS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'FAST'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'HPCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ISCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'MICRO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'PPOPP'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'SC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'USENIX'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TACO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TPDS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CGO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CLOUD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CLUSTER'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CODESISSS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'DATE'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'FPGA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HIPEAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HOTCHIPS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICDCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'PODC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'SPAA']],
-      jc_options: [
-      {
-        'value': '1.计算机体系结构、并行与分布计算、存储系统',
-        'label': '1.计算机体系结构、并行与分布计算、存储系统',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'ASPLOS', 'label': 'ASPLOS'}, {'value': 'DAC', 'label': 'DAC'}, {
-            'value': 'EUROSYS',
-            'label': 'EUROSYS'
-          }, {'value': 'FAST', 'label': 'FAST'}, {'value': 'HPCA', 'label': 'HPCA'}, {
-            'value': 'ISCA',
-            'label': 'ISCA'
-          }, {'value': 'MICRO', 'label': 'MICRO'}, {'value': 'PPOPP', 'label': 'PPOPP'}, {
-            'value': 'SC',
-            'label': 'SC'
-          }, {'value': 'USENIX', 'label': 'USENIX'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'TACO', 'label': 'TACO'}, {'value': 'TC', 'label': 'TC'}, {
-            'value': 'TCAD',
-            'label': 'TCAD'
-          }, {'value': 'TOCS', 'label': 'TOCS'}, {'value': 'TOS', 'label': 'TOS'}, {'value': 'TPDS', 'label': 'TPDS'}]
-        }, {
-          'value': 'B会',
-          'label': 'B会',
-          'children': [{'value': 'CGO', 'label': 'CGO'}, {'value': 'CLOUD', 'label': 'CLOUD'}, {
-            'value': 'CLUSTER',
-            'label': 'CLUSTER'
-          }, {'value': 'CODESISSS', 'label': 'CODESISSS'}, {'value': 'DATE', 'label': 'DATE'}, {
-            'value': 'FPGA',
-            'label': 'FPGA'
-          }, {'value': 'HIPEAC', 'label': 'HIPEAC'}, {'value': 'HOTCHIPS', 'label': 'HOTCHIPS'}, {
-            'value': 'ICCAD',
-            'label': 'ICCAD'
-          }, {'value': 'ICCD', 'label': 'ICCD'}, {'value': 'ICDCS', 'label': 'ICDCS'}, {
-            'value': 'PODC',
-            'label': 'PODC'
-          }, {'value': 'SPAA', 'label': 'SPAA'}]
-        }]
-      },  {
-        'value': '2.计算机网络',
-        'label': '2.计算机网络',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'INFOCOM', 'label': 'INFOCOM'}, {
-            'value': 'MOBICOM',
-            'label': 'MOBICOM'
-          }, {'value': 'NSDI', 'label': 'NSDI'}, {'value': 'SIGCOMM', 'label': 'SIGCOMM'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'JSAC', 'label': 'JSAC'}, {'value': 'TMC', 'label': 'TMC'}, {
-            'value': 'TON',
-            'label': 'TON'
-          }]
-        }]
-      }, {
-        'value': '3.网络与信息安全',
-        'label': '3.网络与信息安全',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'CCS', 'label': 'CCS'}, {'value': 'CRYPTO', 'label': 'CRYPTO'}, {
-            'value': 'EUROCRYPT',
-            'label': 'EUROCRYPT'
-          }, {'value': 'NDSS', 'label': 'NDSS'}, {'value': 'SP', 'label': 'SP'}, {'value': 'USS', 'label': 'USS'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'JOC', 'label': 'JOC'}, {'value': 'TDSC', 'label': 'TDSC'}, {
-            'value': 'TIFS',
-            'label': 'TIFS'
-          }]
-        }]
-      }, {
-        'value': '4.软件工程、系统软件、程序设计语言',
-        'label': '4.软件工程、系统软件、程序设计语言',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'ICSE', 'label': 'ICSE'}, {'value': 'ISSTA', 'label': 'ISSTA'}, {
-            'value': 'KBSE',
-            'label': 'KBSE'
-          }, {'value': 'OOPSLA', 'label': 'OOPSLA'}, {'value': 'OSDI', 'label': 'OSDI'}, {
-            'value': 'PLDI',
-            'label': 'PLDI'
-          }, {'value': 'POPL', 'label': 'POPL'}, {'value': 'SIGSOFT', 'label': 'SIGSOFT'}, {
-            'value': 'SOSP',
-            'label': 'SOSP'
-          }]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'TOPLAS', 'label': 'TOPLAS'}, {'value': 'TOSEM', 'label': 'TOSEM'}, {
-            'value': 'TSC',
-            'label': 'TSC'
-          }, {'value': 'TSE', 'label': 'TSE'}]
-        }]
-      }, {
-        'value': '5.数据库、数据挖掘、内容检索',
-        'label': '5.数据库、数据挖掘、内容检索',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'ICDE', 'label': 'ICDE'}, {'value': 'KDD', 'label': 'KDD'}, {
-            'value': 'SIGIR',
-            'label': 'SIGIR'
-          }, {'value': 'SIGMOD', 'label': 'SIGMOD'}, {'value': 'VLDB', 'label': 'VLDB'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'TKDE', 'label': 'TKDE'}, {'value': 'TODS', 'label': 'TODS'}, {
-            'value': 'TOIS',
-            'label': 'TOIS'
-          }, {'value': 'VLDB', 'label': 'VLDB'}]
-        }]
-      }, {
-        'value': '6.计算机科学理论',
-        'label': '6.计算机科学理论',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'CAV', 'label': 'CAV'}, {'value': 'FOCS', 'label': 'FOCS'}, {
-            'value': 'LICS',
-            'label': 'LICS'
-          }, {'value': 'SODA', 'label': 'SODA'}, {'value': 'STOC', 'label': 'STOC'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'IANDC', 'label': 'IANDC'}, {
-            'value': 'SIAMCOMP',
-            'label': 'SIAMCOMP'
-          }, {'value': 'TIT', 'label': 'TIT'}]
-        }]
-      }, {
-        'value': '7.计算机图形学与多媒体',
-        'label': '7.计算机图形学与多媒体',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'MM', 'label': 'MM'}, {
-            'value': 'SIGGRAPH',
-            'label': 'SIGGRAPH'
-          }, {'value': 'VISUALIZATION', 'label': 'VISUALIZATION'}, {'value': 'VR', 'label': 'VR'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'TIP', 'label': 'TIP'}, {'value': 'TOG', 'label': 'TOG'}, {
-            'value': 'TVCG',
-            'label': 'TVCG'
-          }]
-        }]
-      }, {
-        'value': '8.人工智能',
-        'label': '8.人工智能',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'AAAI', 'label': 'AAAI'}, {'value': 'ACL', 'label': 'ACL'}, {
-            'value': 'CVPR',
-            'label': 'CVPR'
-          }, {'value': 'ICCV', 'label': 'ICCV'}, {'value': 'ICML', 'label': 'ICML'}, {
-            'value': 'IJCAI',
-            'label': 'IJCAI'
-          }, {'value': 'NIPS', 'label': 'NIPS'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'AI', 'label': 'AI'}, {'value': 'IJCV', 'label': 'IJCV'}, {
-            'value': 'JMLR',
-            'label': 'JMLR'
-          }, {'value': 'PAMI', 'label': 'PAMI'}]
-        }]
-      }, {
-        'value': '9.人机交互与普适计算',
-        'label': '9.人机交互与普适计算',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'CHI', 'label': 'CHI'}, {'value': 'CSCW', 'label': 'CSCW'}, {
-            'value': 'HUC',
-            'label': 'HUC'
-          }, {'value': 'UIST', 'label': 'UIST'}]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'IJMMS', 'label': 'IJMMS'}, {'value': 'TOCHI', 'label': 'TOCHI'}]
-        },]
-      },{
-        'value': '10.交叉、综合、新兴',
-        'label': '10.交叉、综合、新兴',
-        'children': [{
-          'value': 'A会',
-          'label': 'A会',
-          'children': [{'value': 'RTSS', 'label': 'RTSS'}, {'value': 'WINE', 'label': 'WINE'}, {
-            'value': 'WWW',
-            'label': 'WWW'
-          }]
-        }, {
-          'value': 'A刊',
-          'label': 'A刊',
-          'children': [{'value': 'CHINAF', 'label': 'CHINAF'}, {'value': 'JACM', 'label': 'JACM'}, {
-            'value': 'PIEEE',
-            'label': 'PIEEE'
-          }]
-        }]
-      },]
-        ,
+      selectedTag: [],
+      jc_options: [],
       show_1: true,
 
       activeIndex: '1',
@@ -345,11 +150,12 @@ export default {
       volume_options: [],
       vols: '10',
 
-      key_input: 'MU-RMW',
+      key_input: '',
 
       url_input: '',//'https://dblp.uni-trier.de/pid/332/3372.html',
 
       table1Data: [],
+      table1DataBackup: [],
       currentPage: 1, // 当前页
       pageCount : 0,
       pageSize : 0,
@@ -385,6 +191,28 @@ export default {
   },
 
   methods: {
+    extractData(obj, path = [], result = []) {
+      if (obj.children) {
+        path.push(obj.value);
+        for (const child of obj.children) {
+          this.extractData(child, [...path], result);
+        }
+      } else {
+        path.push(obj.value);
+        result.push(path);
+      }
+      return result;
+    },
+
+    selectAllOptions(){
+      console.log(this.selectAllChecked)
+      if (this.selectAllChecked===false){
+        this.selectedTag = []
+        return
+      }
+      this.selectedTag = [['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ASPLOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'DAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'EUROSYS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'FAST'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'HPCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ISCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'MICRO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'SC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'USENIX'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TACO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TPDS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CGO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CLUSTER'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'DATE'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'FPGA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICDCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'PODC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'SPAA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'PPoPP'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CODES+ISSS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HiPEAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HOT CHIPS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'SoCC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'JPDC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'JSA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'PC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'PE'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TAAS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TECS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TODAES'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TRETS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TVLSI'], ['2.计算机网络', 'A会', 'INFOCOM'], ['2.计算机网络', 'A会', 'MobiCom'], ['2.计算机网络', 'A会', 'NSDI'], ['2.计算机网络', 'A会', 'SIGCOMM'], ['2.计算机网络', 'A刊', 'JSAC'], ['2.计算机网络', 'A刊', 'TMC'], ['2.计算机网络', 'A刊', 'TON'], ['2.计算机网络', 'B会', 'CoNEXT'], ['2.计算机网络', 'B会', 'ICNP'], ['2.计算机网络', 'B会', 'IMC'], ['2.计算机网络', 'B会', 'IPSN'], ['2.计算机网络', 'B会', 'IWQoS'], ['2.计算机网络', 'B会', 'MobiHoc'], ['2.计算机网络', 'B会', 'MobiSys'], ['2.计算机网络', 'B会', 'NOSSDAV'], ['2.计算机网络', 'B会', 'SECON'], ['2.计算机网络', 'B会', 'SenSys'], ['2.计算机网络', 'B刊', 'CN'], ['2.计算机网络', 'B刊', 'TCOM'], ['2.计算机网络', 'B刊', 'TOIT'], ['2.计算机网络', 'B刊', 'TOMM'], ['2.计算机网络', 'B刊', 'TOSN'], ['2.计算机网络', 'B刊', 'TWC'], ['3.网络与信息安全', 'A会', 'CCS'], ['3.网络与信息安全', 'A会', 'CRYPTO'], ['3.网络与信息安全', 'A会', 'EUROCRYPT'], ['3.网络与信息安全', 'A会', 'NDSS'], ['3.网络与信息安全', 'A会', 'S&P'], ['3.网络与信息安全', 'A会', 'USENIX Security'], ['3.网络与信息安全', 'A刊', 'JOC'], ['3.网络与信息安全', 'A刊', 'TDSC'], ['3.网络与信息安全', 'A刊', 'TIFS'], ['3.网络与信息安全', 'B会', 'ACSAC'], ['3.网络与信息安全', 'B会', 'ASIACRYPT'], ['3.网络与信息安全', 'B会', 'CHES'], ['3.网络与信息安全', 'B会', 'CSFW'], ['3.网络与信息安全', 'B会', 'DSN'], ['3.网络与信息安全', 'B会', 'ESORICS'], ['3.网络与信息安全', 'B会', 'FSE'], ['3.网络与信息安全', 'B会', 'PKC'], ['3.网络与信息安全', 'B会', 'RAID'], ['3.网络与信息安全', 'B会', 'SRDS'], ['3.网络与信息安全', 'B会', 'TCC'], ['3.网络与信息安全', 'B刊', 'COMPSEC'], ['3.网络与信息安全', 'B刊', 'DCC'], ['3.网络与信息安全', 'B刊', 'JCS'], ['3.网络与信息安全', 'B刊', 'TOPS'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'ASE'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'FM'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'FSE&ESEC'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'ICSE'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'ISSTA'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'OOPSLA'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'OSDI'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'PLDI'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'POPL'], ['4.软件工程、系统软件、程序设计语言', 'A会', 'SOSP'], ['4.软件工程、系统软件、程序设计语言', 'A刊', 'TOPLAS'], ['4.软件工程、系统软件、程序设计语言', 'A刊', 'TOSEM'], ['4.软件工程、系统软件、程序设计语言', 'A刊', 'TSC'], ['4.软件工程、系统软件、程序设计语言', 'A刊', 'TSE'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'CAiSE'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'CP'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ECOOP'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ESEM'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ETAPS'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'HotOS'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ICFP'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ICPC'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ICSME'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ICSOC'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ICWS'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'ISSRE'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'LCTES'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'Middleware'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'MoDELS'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'RE'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'SANER'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'SAS'], ['4.软件工程、系统软件、程序设计语言', 'B会', 'VMCAI'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'ASE'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'ESE'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'IETS'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'IST'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'JFP'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'JSS'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'RE'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'SCP'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'SMR'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'SoSyM'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'SPE'], ['4.软件工程、系统软件、程序设计语言', 'B刊', 'STVR'], ['5.数据库、数据挖掘、内容检索', 'A会', 'ICDE'], ['5.数据库、数据挖掘、内容检索', 'A会', 'SIGIR'], ['5.数据库、数据挖掘、内容检索', 'A会', 'SIGKDD'], ['5.数据库、数据挖掘、内容检索', 'A会', 'SIGMOD'], ['5.数据库、数据挖掘、内容检索', 'A会', 'VLDB'], ['5.数据库、数据挖掘、内容检索', 'A刊', 'TKDE'], ['5.数据库、数据挖掘、内容检索', 'A刊', 'TODS'], ['5.数据库、数据挖掘、内容检索', 'A刊', 'TOIS'], ['5.数据库、数据挖掘、内容检索', 'A刊', 'VLDBJ'], ['5.数据库、数据挖掘、内容检索', 'B会', 'CIDR'], ['5.数据库、数据挖掘、内容检索', 'B会', 'CIKM'], ['5.数据库、数据挖掘、内容检索', 'B会', 'DASFAA'], ['5.数据库、数据挖掘、内容检索', 'B会', 'ECML-PKDD'], ['5.数据库、数据挖掘、内容检索', 'B会', 'EDBT'], ['5.数据库、数据挖掘、内容检索', 'B会', 'ICDM'], ['5.数据库、数据挖掘、内容检索', 'B会', 'ICDT'], ['5.数据库、数据挖掘、内容检索', 'B会', 'ISWC'], ['5.数据库、数据挖掘、内容检索', 'B会', 'PODS'], ['5.数据库、数据挖掘、内容检索', 'B会', 'RecSys'], ['5.数据库、数据挖掘、内容检索', 'B会', 'SDM'], ['5.数据库、数据挖掘、内容检索', 'B会', 'WSDM'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'AEI'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'DKE'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'DMKD'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'EJIS'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'Geoinformatica'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'IPM'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'IS'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'ISCI'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'JASIST'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'JWS'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'KAIS'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'TKDD'], ['5.数据库、数据挖掘、内容检索', 'B刊', 'TWEB'], ['6.计算机科学理论', 'A会', 'CAV'], ['6.计算机科学理论', 'A会', 'FOCS'], ['6.计算机科学理论', 'A会', 'LICS'], ['6.计算机科学理论', 'A会', 'SODA'], ['6.计算机科学理论', 'A会', 'STOC'], ['6.计算机科学理论', 'A刊', 'IANDC'], ['6.计算机科学理论', 'A刊', 'SICOMP'], ['6.计算机科学理论', 'A刊', 'TIT'], ['6.计算机科学理论', 'B会', 'CADE'], ['6.计算机科学理论', 'B会', 'CCC'], ['6.计算机科学理论', 'B会', 'COCOON'], ['6.计算机科学理论', 'B会', 'CONCUR'], ['6.计算机科学理论', 'B会', 'ESA'], ['6.计算机科学理论', 'B会', 'HSCC'], ['6.计算机科学理论', 'B会', 'ICALP'], ['6.计算机科学理论', 'B会', 'SAT'], ['6.计算机科学理论', 'B会', 'SoCG'], ['6.计算机科学理论', 'B刊', 'Algorithmica'], ['6.计算机科学理论', 'B刊', 'CC'], ['6.计算机科学理论', 'B刊', 'FAC'], ['6.计算机科学理论', 'B刊', 'FMSD'], ['6.计算机科学理论', 'B刊', 'INFORMS'], ['6.计算机科学理论', 'B刊', 'JCSS'], ['6.计算机科学理论', 'B刊', 'JGO'], ['6.计算机科学理论', 'B刊', 'JSC'], ['6.计算机科学理论', 'B刊', 'MSCS'], ['6.计算机科学理论', 'B刊', 'TALG'], ['6.计算机科学理论', 'B刊', 'TCS'], ['6.计算机科学理论', 'B刊', 'TOCL'], ['6.计算机科学理论', 'B刊', 'TOMS'], ['7.计算机图形学与多媒体', 'A会', 'ACM MM'], ['7.计算机图形学与多媒体', 'A会', 'IEEE VIS'], ['7.计算机图形学与多媒体', 'A会', 'SIGGRAPH'], ['7.计算机图形学与多媒体', 'A会', 'VR'], ['7.计算机图形学与多媒体', 'A刊', 'TIP'], ['7.计算机图形学与多媒体', 'A刊', 'TOG'], ['7.计算机图形学与多媒体', 'A刊', 'TVCG'], ['7.计算机图形学与多媒体', 'B会', 'DCC'], ['7.计算机图形学与多媒体', 'B会', 'EGSR'], ['7.计算机图形学与多媒体', 'B会', 'Eurographics'], ['7.计算机图形学与多媒体', 'B会', 'EuroVis'], ['7.计算机图形学与多媒体', 'B会', 'I3D'], ['7.计算机图形学与多媒体', 'B会', 'ICASSP'], ['7.计算机图形学与多媒体', 'B会', 'ICME'], ['7.计算机图形学与多媒体', 'B会', 'ICMR'], ['7.计算机图形学与多媒体', 'B会', 'ISMAR'], ['7.计算机图形学与多媒体', 'B会', 'PG'], ['7.计算机图形学与多媒体', 'B会', 'SCA'], ['7.计算机图形学与多媒体', 'B会', 'SGP'], ['7.计算机图形学与多媒体', 'B会', 'SPM'], ['7.计算机图形学与多媒体', 'B刊', 'CAD'], ['7.计算机图形学与多媒体', 'B刊', 'CAGD'], ['7.计算机图形学与多媒体', 'B刊', 'CGF'], ['7.计算机图形学与多媒体', 'B刊', 'GM'], ['7.计算机图形学与多媒体', 'B刊', 'SIIMS'], ['7.计算机图形学与多媒体', 'B刊', 'SPECOM'], ['7.计算机图形学与多媒体', 'B刊', 'TCSVT'], ['7.计算机图形学与多媒体', 'B刊', 'TMM'], ['7.计算机图形学与多媒体', 'B刊', 'TOMM'], ['8.人工智能', 'A会', 'AAAI'], ['8.人工智能', 'A会', 'ACL'], ['8.人工智能', 'A会', 'CVPR'], ['8.人工智能', 'A会', 'ICCV'], ['8.人工智能', 'A会', 'ICML'], ['8.人工智能', 'A会', 'IJCAI'], ['8.人工智能', 'A会', 'NeurIPS'], ['8.人工智能', 'A刊', 'AI'], ['8.人工智能', 'A刊', 'IJCV'], ['8.人工智能', 'A刊', 'JMLR'], ['8.人工智能', 'A刊', 'TPAMI'], ['8.人工智能', 'B会', 'AAMAS'], ['8.人工智能', 'B会', 'COLT'], ['8.人工智能', 'B会', 'ECAI'], ['8.人工智能', 'B会', 'ECCV'], ['8.人工智能', 'B会', 'EMNLP'], ['8.人工智能', 'B会', 'ICAPS'], ['8.人工智能', 'B会', 'ICCBR'], ['8.人工智能', 'B会', 'ICRA'], ['8.人工智能', 'B会', 'KR'], ['8.人工智能', 'B会', 'NAACL'], ['8.人工智能', 'B会', 'PPSN'], ['8.人工智能', 'B会', 'UAI'], ['8.人工智能', 'B刊', 'AAMAS'], ['8.人工智能', 'B刊', 'Coling'], ['8.人工智能', 'B刊', 'CVIU'], ['8.人工智能', 'B刊', 'DKE'], ['8.人工智能', 'B刊', 'EC'], ['8.人工智能', 'B刊', 'IJAR'], ['8.人工智能', 'B刊', 'JAIR'], ['8.人工智能', 'B刊', 'ML'], ['8.人工智能', 'B刊', 'NECO'], ['8.人工智能', 'B刊', 'NN'], ['8.人工智能', 'B刊', 'TAC'], ['8.人工智能', 'B刊', 'TAP'], ['8.人工智能', 'B刊', 'TASLP'], ['8.人工智能', 'B刊', 'TCYB'], ['8.人工智能', 'B刊', 'TEC'], ['8.人工智能', 'B刊', 'TFS'], ['8.人工智能', 'B刊', 'TNNLS'], ['9.人机交互与普适计算', 'A会', 'CHI'], ['9.人机交互与普适计算', 'A会', 'CSCW'], ['9.人机交互与普适计算', 'A会', 'UbiComp'], ['9.人机交互与普适计算', 'A会', 'UIST'], ['9.人机交互与普适计算', 'A刊', 'IJHCS'], ['9.人机交互与普适计算', 'A刊', 'TOCHI'], ['9.人机交互与普适计算', 'B会', 'ECSCW'], ['9.人机交互与普适计算', 'B会', 'GROUP'], ['9.人机交互与普适计算', 'B会', 'ICWSM'], ['9.人机交互与普适计算', 'B会', 'ITS'], ['9.人机交互与普适计算', 'B会', 'IUI'], ['9.人机交互与普适计算', 'B会', 'MobileHCI'], ['9.人机交互与普适计算', 'B会', 'PERCOM'], ['9.人机交互与普适计算', 'B刊', 'CSCW'], ['9.人机交互与普适计算', 'B刊', 'HCI'], ['9.人机交互与普适计算', 'B刊', 'IJHCI'], ['9.人机交互与普适计算', 'B刊', 'IWC'], ['9.人机交互与普适计算', 'B刊', 'THMS'], ['9.人机交互与普适计算', 'B刊', 'UMUAI'], ['10.交叉、综合、新兴', 'A会', 'RTSS'], ['10.交叉、综合、新兴', 'A会', 'WINE'], ['10.交叉、综合、新兴', 'A会', 'WWW'], ['10.交叉、综合、新兴', 'A刊', 'JACM'], ['10.交叉、综合、新兴', 'A刊', 'Proc. IEEE'], ['10.交叉、综合、新兴', 'A刊', 'Proc. SCIS'], ['10.交叉、综合、新兴', 'B会', 'BIBM'], ['10.交叉、综合、新兴', 'B会', 'CogSci'], ['10.交叉、综合、新兴', 'B会', 'EMSOFT'], ['10.交叉、综合、新兴', 'B会', 'ISMB'], ['10.交叉、综合、新兴', 'B会', 'MICCAI'], ['10.交叉、综合、新兴', 'B会', 'RECOMB'], ['10.交叉、综合、新兴', 'B刊', 'Bib'], ['10.交叉、综合、新兴', 'B刊', 'Bioinformatics'], ['10.交叉、综合、新兴', 'B刊', 'CJ'], ['10.交叉、综合、新兴', 'B刊', 'FCS'], ['10.交叉、综合、新兴', 'B刊', 'JAMIA'], ['10.交叉、综合、新兴', 'B刊', 'JCST'], ['10.交叉、综合、新兴', 'B刊', 'Ploscb'], ['10.交叉、综合、新兴', 'B刊', 'TASAE'], ['10.交叉、综合、新兴', 'B刊', 'TCBB'], ['10.交叉、综合、新兴', 'B刊', 'TGARS'], ['10.交叉、综合、新兴', 'B刊', 'TITS'], ['10.交叉、综合、新兴', 'B刊', 'TMI'], ['10.交叉、综合、新兴', 'B刊', 'TR'], ['10.交叉、综合、新兴', 'B刊', 'WWW']]
+    },
+
 
     handleSizeChange(val) {
       this.pageSize = val
@@ -412,6 +240,7 @@ export default {
     },
 
     searchPaper() {
+      this.loading = true
       this.show_paper_url = true
       // 数据合理性
       if (this.key_input === '') {
@@ -433,7 +262,7 @@ export default {
       this.table1_loading = true
       axios({
         method: 'post',
-        url: 'http://172.31.225.109:5000/search',
+        url: 'http://172.31.225.109:5001/search',
         data: {
           key_words: this.key_input,
           start_year: this.start_year,
@@ -445,8 +274,11 @@ export default {
       }).then((res) => {
         console.log(res.data)
         this.table1Data = res.data
+        this.table1DataBackup = [...this.table1Data]
         this.pageCount = 1
         this.pageSize = this.table1Data.length
+        this.pageSizes = [5, 10, 20, 50, 100, 500, 1000]
+        this.pageSizes.unshift(this.table1Data.length)
         if (this.table1Data.length>0){
           this.table1empty = false
         }else {
@@ -456,8 +288,37 @@ export default {
       }).catch(() => {
         this.$message("数据异常，请重试")
       }).finally(() => {
+        this.loading = false
         this.table1_loading = false
       })
+    },
+
+    handleSortChange(newValue){
+      console.log('选项变化了：', newValue);
+      if (newValue==="title"){
+        this.table1Data.sort((a, b) => {
+          if (a.title.toLowerCase() < b.title.toLowerCase()) {
+            return -1;
+          }
+          if (a.title.toLowerCase() > b.title.toLowerCase()) {
+            return 1;
+          }
+          return 0;
+        });
+      }else if (newValue==="jcname"){
+        this.table1Data.sort((a, b) => {
+          if (a.conference_or_article.toLowerCase() < b.conference_or_article.toLowerCase()) {
+            return -1;
+          }
+          if (a.conference_or_article.toLowerCase() > b.conference_or_article.toLowerCase()) {
+            return 1;
+          }
+          return 0;
+        });
+      }else {
+        this.table1Data = [...this.table1DataBackup]
+      }
+
     },
 
     get() {
@@ -561,11 +422,12 @@ export default {
     //   url: 'http://172.31.225.109:5001/jcoptions',
     // }).then((res) => {
     //   console.log(res.data)
-    //   this.jc_options = res.data
+    //   this.jc_options = [...res.data]
     // }).catch(() => {
     //   this.$message("数据异常，请重试")
     // })
-
+    this.jc_options = [{'value': '1.计算机体系结构、并行与分布计算、存储系统', 'label': '1.计算机体系结构、并行与分布计算、存储系统', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ASPLOS', 'label': 'ASPLOS', 'children': []}, {'value': 'DAC', 'label': 'DAC', 'children': []}, {'value': 'EUROSYS', 'label': 'EUROSYS', 'children': []}, {'value': 'FAST', 'label': 'FAST', 'children': []}, {'value': 'HPCA', 'label': 'HPCA', 'children': []}, {'value': 'ISCA', 'label': 'ISCA', 'children': []}, {'value': 'MICRO', 'label': 'MICRO', 'children': []}, {'value': 'PPoPP', 'label': 'PPoPP', 'children': []}, {'value': 'SC', 'label': 'SC', 'children': []}, {'value': 'USENIX', 'label': 'USENIX', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TACO', 'label': 'TACO', 'children': []}, {'value': 'TC', 'label': 'TC', 'children': []}, {'value': 'TCAD', 'label': 'TCAD', 'children': []}, {'value': 'TOCS', 'label': 'TOCS', 'children': []}, {'value': 'TOS', 'label': 'TOS', 'children': []}, {'value': 'TPDS', 'label': 'TPDS', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'CGO', 'label': 'CGO', 'children': []}, {'value': 'CLUSTER', 'label': 'CLUSTER', 'children': []}, {'value': 'CODES+ISSS', 'label': 'CODES+ISSS', 'children': []}, {'value': 'DATE', 'label': 'DATE', 'children': []}, {'value': 'FPGA', 'label': 'FPGA', 'children': []}, {'value': 'HiPEAC', 'label': 'HiPEAC', 'children': []}, {'value': 'HOT CHIPS', 'label': 'HOT CHIPS', 'children': []}, {'value': 'ICCAD', 'label': 'ICCAD', 'children': []}, {'value': 'ICCD', 'label': 'ICCD', 'children': []}, {'value': 'ICDCS', 'label': 'ICDCS', 'children': []}, {'value': 'PODC', 'label': 'PODC', 'children': []}, {'value': 'SoCC', 'label': 'SoCC', 'children': []}, {'value': 'SPAA', 'label': 'SPAA', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'JPDC', 'label': 'JPDC', 'children': []}, {'value': 'JSA', 'label': 'JSA', 'children': []}, {'value': 'PC', 'label': 'PC', 'children': []}, {'value': 'PE', 'label': 'PE', 'children': []}, {'value': 'TAAS', 'label': 'TAAS', 'children': []}, {'value': 'TECS', 'label': 'TECS', 'children': []}, {'value': 'TODAES', 'label': 'TODAES', 'children': []}, {'value': 'TRETS', 'label': 'TRETS', 'children': []}, {'value': 'TVLSI', 'label': 'TVLSI', 'children': []}]}]}, {'value': '2.计算机网络', 'label': '2.计算机网络', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'INFOCOM', 'label': 'INFOCOM', 'children': []}, {'value': 'MobiCom', 'label': 'MobiCom', 'children': []}, {'value': 'NSDI', 'label': 'NSDI', 'children': []}, {'value': 'SIGCOMM', 'label': 'SIGCOMM', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'JSAC', 'label': 'JSAC', 'children': []}, {'value': 'TMC', 'label': 'TMC', 'children': []}, {'value': 'TON', 'label': 'TON', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'CoNEXT', 'label': 'CoNEXT', 'children': []}, {'value': 'ICNP', 'label': 'ICNP', 'children': []}, {'value': 'IMC', 'label': 'IMC', 'children': []}, {'value': 'IPSN', 'label': 'IPSN', 'children': []}, {'value': 'IWQoS', 'label': 'IWQoS', 'children': []}, {'value': 'MobiHoc', 'label': 'MobiHoc', 'children': []}, {'value': 'MobiSys', 'label': 'MobiSys', 'children': []}, {'value': 'NOSSDAV', 'label': 'NOSSDAV', 'children': []}, {'value': 'SECON', 'label': 'SECON', 'children': []}, {'value': 'SenSys', 'label': 'SenSys', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'CN', 'label': 'CN', 'children': []}, {'value': 'TCOM', 'label': 'TCOM', 'children': []}, {'value': 'TOIT', 'label': 'TOIT', 'children': []}, {'value': 'TOMM', 'label': 'TOMM', 'children': []}, {'value': 'TOSN', 'label': 'TOSN', 'children': []}, {'value': 'TWC', 'label': 'TWC', 'children': []}]}]}, {'value': '3.网络与信息安全', 'label': '3.网络与信息安全', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'CCS', 'label': 'CCS', 'children': []}, {'value': 'CRYPTO', 'label': 'CRYPTO', 'children': []}, {'value': 'EUROCRYPT', 'label': 'EUROCRYPT', 'children': []}, {'value': 'NDSS', 'label': 'NDSS', 'children': []}, {'value': 'S&P', 'label': 'S&P', 'children': []}, {'value': 'USENIX Security', 'label': 'USENIX Security', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'JOC', 'label': 'JOC', 'children': []}, {'value': 'TDSC', 'label': 'TDSC', 'children': []}, {'value': 'TIFS', 'label': 'TIFS', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'ACSAC', 'label': 'ACSAC', 'children': []}, {'value': 'ASIACRYPT', 'label': 'ASIACRYPT', 'children': []}, {'value': 'CHES', 'label': 'CHES', 'children': []}, {'value': 'CSFW', 'label': 'CSFW', 'children': []}, {'value': 'DSN', 'label': 'DSN', 'children': []}, {'value': 'ESORICS', 'label': 'ESORICS', 'children': []}, {'value': 'FSE', 'label': 'FSE', 'children': []}, {'value': 'PKC', 'label': 'PKC', 'children': []}, {'value': 'RAID', 'label': 'RAID', 'children': []}, {'value': 'SRDS', 'label': 'SRDS', 'children': []}, {'value': 'TCC', 'label': 'TCC', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'COMPSEC', 'label': 'COMPSEC', 'children': []}, {'value': 'DCC', 'label': 'DCC', 'children': []}, {'value': 'JCS', 'label': 'JCS', 'children': []}, {'value': 'TOPS', 'label': 'TOPS', 'children': []}]}]}, {'value': '4.软件工程、系统软件、程序设计语言', 'label': '4.软件工程、系统软件、程序设计语言', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ASE', 'label': 'ASE', 'children': []}, {'value': 'FM', 'label': 'FM', 'children': []}, {'value': 'FSE&ESEC', 'label': 'FSE&ESEC', 'children': []}, {'value': 'ICSE', 'label': 'ICSE', 'children': []}, {'value': 'ISSTA', 'label': 'ISSTA', 'children': []}, {'value': 'OOPSLA', 'label': 'OOPSLA', 'children': []}, {'value': 'OSDI', 'label': 'OSDI', 'children': []}, {'value': 'PLDI', 'label': 'PLDI', 'children': []}, {'value': 'POPL', 'label': 'POPL', 'children': []}, {'value': 'SOSP', 'label': 'SOSP', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TOPLAS', 'label': 'TOPLAS', 'children': []}, {'value': 'TOSEM', 'label': 'TOSEM', 'children': []}, {'value': 'TSC', 'label': 'TSC', 'children': []}, {'value': 'TSE', 'label': 'TSE', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'CAiSE', 'label': 'CAiSE', 'children': []}, {'value': 'CP', 'label': 'CP', 'children': []}, {'value': 'ECOOP', 'label': 'ECOOP', 'children': []}, {'value': 'ESEM', 'label': 'ESEM', 'children': []}, {'value': 'ETAPS', 'label': 'ETAPS', 'children': []}, {'value': 'HotOS', 'label': 'HotOS', 'children': []}, {'value': 'ICFP', 'label': 'ICFP', 'children': []}, {'value': 'ICPC', 'label': 'ICPC', 'children': []}, {'value': 'ICSME', 'label': 'ICSME', 'children': []}, {'value': 'ICSOC', 'label': 'ICSOC', 'children': []}, {'value': 'ICWS', 'label': 'ICWS', 'children': []}, {'value': 'ISSRE', 'label': 'ISSRE', 'children': []}, {'value': 'LCTES', 'label': 'LCTES', 'children': []}, {'value': 'Middleware', 'label': 'Middleware', 'children': []}, {'value': 'MoDELS', 'label': 'MoDELS', 'children': []}, {'value': 'RE', 'label': 'RE', 'children': []}, {'value': 'SANER', 'label': 'SANER', 'children': []}, {'value': 'SAS', 'label': 'SAS', 'children': []}, {'value': 'VMCAI', 'label': 'VMCAI', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'ASE', 'label': 'ASE', 'children': []}, {'value': 'ESE', 'label': 'ESE', 'children': []}, {'value': 'IETS', 'label': 'IETS', 'children': []}, {'value': 'IST', 'label': 'IST', 'children': []}, {'value': 'JFP', 'label': 'JFP', 'children': []}, {'value': 'JSS', 'label': 'JSS', 'children': []}, {'value': 'RE', 'label': 'RE', 'children': []}, {'value': 'SCP', 'label': 'SCP', 'children': []}, {'value': 'SMR', 'label': 'SMR', 'children': []}, {'value': 'SoSyM', 'label': 'SoSyM', 'children': []}, {'value': 'SPE', 'label': 'SPE', 'children': []}, {'value': 'STVR', 'label': 'STVR', 'children': []}]}]}, {'value': '5.数据库、数据挖掘、内容检索', 'label': '5.数据库、数据挖掘、内容检索', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ICDE', 'label': 'ICDE', 'children': []}, {'value': 'SIGIR', 'label': 'SIGIR', 'children': []}, {'value': 'SIGKDD', 'label': 'SIGKDD', 'children': []}, {'value': 'SIGMOD', 'label': 'SIGMOD', 'children': []}, {'value': 'VLDB', 'label': 'VLDB', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TKDE', 'label': 'TKDE', 'children': []}, {'value': 'TODS', 'label': 'TODS', 'children': []}, {'value': 'TOIS', 'label': 'TOIS', 'children': []}, {'value': 'VLDBJ', 'label': 'VLDBJ', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'CIDR', 'label': 'CIDR', 'children': []}, {'value': 'CIKM', 'label': 'CIKM', 'children': []}, {'value': 'DASFAA', 'label': 'DASFAA', 'children': []}, {'value': 'ECML-PKDD', 'label': 'ECML-PKDD', 'children': []}, {'value': 'EDBT', 'label': 'EDBT', 'children': []}, {'value': 'ICDM', 'label': 'ICDM', 'children': []}, {'value': 'ICDT', 'label': 'ICDT', 'children': []}, {'value': 'ISWC', 'label': 'ISWC', 'children': []}, {'value': 'PODS', 'label': 'PODS', 'children': []}, {'value': 'RecSys', 'label': 'RecSys', 'children': []}, {'value': 'SDM', 'label': 'SDM', 'children': []}, {'value': 'WSDM', 'label': 'WSDM', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'AEI', 'label': 'AEI', 'children': []}, {'value': 'DKE', 'label': 'DKE', 'children': []}, {'value': 'DMKD', 'label': 'DMKD', 'children': []}, {'value': 'EJIS', 'label': 'EJIS', 'children': []}, {'value': 'Geoinformatica', 'label': 'Geoinformatica', 'children': []}, {'value': 'IPM', 'label': 'IPM', 'children': []}, {'value': 'IS', 'label': 'IS', 'children': []}, {'value': 'ISCI', 'label': 'ISCI', 'children': []}, {'value': 'JASIST', 'label': 'JASIST', 'children': []}, {'value': 'JWS', 'label': 'JWS', 'children': []}, {'value': 'KAIS', 'label': 'KAIS', 'children': []}, {'value': 'TKDD', 'label': 'TKDD', 'children': []}, {'value': 'TWEB', 'label': 'TWEB', 'children': []}]}]}, {'value': '6.计算机科学理论', 'label': '6.计算机科学理论', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'CAV', 'label': 'CAV', 'children': []}, {'value': 'FOCS', 'label': 'FOCS', 'children': []}, {'value': 'LICS', 'label': 'LICS', 'children': []}, {'value': 'SODA', 'label': 'SODA', 'children': []}, {'value': 'STOC', 'label': 'STOC', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'IANDC', 'label': 'IANDC', 'children': []}, {'value': 'SICOMP', 'label': 'SICOMP', 'children': []}, {'value': 'TIT', 'label': 'TIT', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'CADE', 'label': 'CADE', 'children': []}, {'value': 'CCC', 'label': 'CCC', 'children': []}, {'value': 'COCOON', 'label': 'COCOON', 'children': []}, {'value': 'CONCUR', 'label': 'CONCUR', 'children': []}, {'value': 'ESA', 'label': 'ESA', 'children': []}, {'value': 'HSCC', 'label': 'HSCC', 'children': []}, {'value': 'ICALP', 'label': 'ICALP', 'children': []}, {'value': 'SAT', 'label': 'SAT', 'children': []}, {'value': 'SoCG', 'label': 'SoCG', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'Algorithmica', 'label': 'Algorithmica', 'children': []}, {'value': 'CC', 'label': 'CC', 'children': []}, {'value': 'FAC', 'label': 'FAC', 'children': []}, {'value': 'FMSD', 'label': 'FMSD', 'children': []}, {'value': 'INFORMS', 'label': 'INFORMS', 'children': []}, {'value': 'JCSS', 'label': 'JCSS', 'children': []}, {'value': 'JGO', 'label': 'JGO', 'children': []}, {'value': 'JSC', 'label': 'JSC', 'children': []}, {'value': 'MSCS', 'label': 'MSCS', 'children': []}, {'value': 'TALG', 'label': 'TALG', 'children': []}, {'value': 'TCS', 'label': 'TCS', 'children': []}, {'value': 'TOCL', 'label': 'TOCL', 'children': []}, {'value': 'TOMS', 'label': 'TOMS', 'children': []}]}]}, {'value': '7.计算机图形学与多媒体', 'label': '7.计算机图形学与多媒体', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'ACM MM', 'label': 'ACM MM', 'children': []}, {'value': 'IEEE VIS', 'label': 'IEEE VIS', 'children': []}, {'value': 'SIGGRAPH', 'label': 'SIGGRAPH', 'children': []}, {'value': 'VR', 'label': 'VR', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'TIP', 'label': 'TIP', 'children': []}, {'value': 'TOG', 'label': 'TOG', 'children': []}, {'value': 'TVCG', 'label': 'TVCG', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'DCC', 'label': 'DCC', 'children': []}, {'value': 'EGSR', 'label': 'EGSR', 'children': []}, {'value': 'Eurographics', 'label': 'Eurographics', 'children': []}, {'value': 'EuroVis', 'label': 'EuroVis', 'children': []}, {'value': 'I3D', 'label': 'I3D', 'children': []}, {'value': 'ICASSP', 'label': 'ICASSP', 'children': []}, {'value': 'ICME', 'label': 'ICME', 'children': []}, {'value': 'ICMR', 'label': 'ICMR', 'children': []}, {'value': 'ISMAR', 'label': 'ISMAR', 'children': []}, {'value': 'PG', 'label': 'PG', 'children': []}, {'value': 'SCA', 'label': 'SCA', 'children': []}, {'value': 'SGP', 'label': 'SGP', 'children': []}, {'value': 'SPM', 'label': 'SPM', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'CAD', 'label': 'CAD', 'children': []}, {'value': 'CAGD', 'label': 'CAGD', 'children': []}, {'value': 'CGF', 'label': 'CGF', 'children': []}, {'value': 'GM', 'label': 'GM', 'children': []}, {'value': 'SIIMS', 'label': 'SIIMS', 'children': []}, {'value': 'SPECOM', 'label': 'SPECOM', 'children': []}, {'value': 'TCSVT', 'label': 'TCSVT', 'children': []}, {'value': 'TMM', 'label': 'TMM', 'children': []}, {'value': 'TOMM', 'label': 'TOMM', 'children': []}]}]}, {'value': '8.人工智能', 'label': '8.人工智能', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'AAAI', 'label': 'AAAI', 'children': []}, {'value': 'ACL', 'label': 'ACL', 'children': []}, {'value': 'CVPR', 'label': 'CVPR', 'children': []}, {'value': 'ICCV', 'label': 'ICCV', 'children': []}, {'value': 'ICML', 'label': 'ICML', 'children': []}, {'value': 'IJCAI', 'label': 'IJCAI', 'children': []}, {'value': 'NeurIPS', 'label': 'NeurIPS', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'AI', 'label': 'AI', 'children': []}, {'value': 'IJCV', 'label': 'IJCV', 'children': []}, {'value': 'JMLR', 'label': 'JMLR', 'children': []}, {'value': 'TPAMI', 'label': 'TPAMI', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'AAMAS', 'label': 'AAMAS', 'children': []}, {'value': 'COLT', 'label': 'COLT', 'children': []}, {'value': 'ECAI', 'label': 'ECAI', 'children': []}, {'value': 'ECCV', 'label': 'ECCV', 'children': []}, {'value': 'EMNLP', 'label': 'EMNLP', 'children': []}, {'value': 'ICAPS', 'label': 'ICAPS', 'children': []}, {'value': 'ICCBR', 'label': 'ICCBR', 'children': []}, {'value': 'ICRA', 'label': 'ICRA', 'children': []}, {'value': 'KR', 'label': 'KR', 'children': []}, {'value': 'NAACL', 'label': 'NAACL', 'children': []}, {'value': 'PPSN', 'label': 'PPSN', 'children': []}, {'value': 'UAI', 'label': 'UAI', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'AAMAS', 'label': 'AAMAS', 'children': []}, {'value': 'Coling', 'label': 'Coling', 'children': []}, {'value': 'CVIU', 'label': 'CVIU', 'children': []}, {'value': 'DKE', 'label': 'DKE', 'children': []}, {'value': 'EC', 'label': 'EC', 'children': []}, {'value': 'IJAR', 'label': 'IJAR', 'children': []}, {'value': 'JAIR', 'label': 'JAIR', 'children': []}, {'value': 'ML', 'label': 'ML', 'children': []}, {'value': 'NECO', 'label': 'NECO', 'children': []}, {'value': 'NN', 'label': 'NN', 'children': []}, {'value': 'TAC', 'label': 'TAC', 'children': []}, {'value': 'TAP', 'label': 'TAP', 'children': []}, {'value': 'TASLP', 'label': 'TASLP', 'children': []}, {'value': 'TCYB', 'label': 'TCYB', 'children': []}, {'value': 'TEC', 'label': 'TEC', 'children': []}, {'value': 'TFS', 'label': 'TFS', 'children': []}, {'value': 'TNNLS', 'label': 'TNNLS', 'children': []}]}]}, {'value': '9.人机交互与普适计算', 'label': '9.人机交互与普适计算', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'CHI', 'label': 'CHI', 'children': []}, {'value': 'CSCW', 'label': 'CSCW', 'children': []}, {'value': 'UbiComp', 'label': 'UbiComp', 'children': []}, {'value': 'UIST', 'label': 'UIST', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'IJHCS', 'label': 'IJHCS', 'children': []}, {'value': 'TOCHI', 'label': 'TOCHI', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'ECSCW', 'label': 'ECSCW', 'children': []}, {'value': 'GROUP', 'label': 'GROUP', 'children': []}, {'value': 'ICWSM', 'label': 'ICWSM', 'children': []}, {'value': 'ITS', 'label': 'ITS', 'children': []}, {'value': 'IUI', 'label': 'IUI', 'children': []}, {'value': 'MobileHCI', 'label': 'MobileHCI', 'children': []}, {'value': 'PERCOM', 'label': 'PERCOM', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'CSCW', 'label': 'CSCW', 'children': []}, {'value': 'HCI', 'label': 'HCI', 'children': []}, {'value': 'IJHCI', 'label': 'IJHCI', 'children': []}, {'value': 'IWC', 'label': 'IWC', 'children': []}, {'value': 'THMS', 'label': 'THMS', 'children': []}, {'value': 'UMUAI', 'label': 'UMUAI', 'children': []}]}]}, {'value': '10.交叉、综合、新兴', 'label': '10.交叉、综合、新兴', 'children': [{'value': 'A会', 'label': 'A会', 'children': [{'value': 'RTSS', 'label': 'RTSS', 'children': []}, {'value': 'WINE', 'label': 'WINE', 'children': []}, {'value': 'WWW', 'label': 'WWW', 'children': []}]}, {'value': 'A刊', 'label': 'A刊', 'children': [{'value': 'JACM', 'label': 'JACM', 'children': []}, {'value': 'Proc. IEEE', 'label': 'Proc. IEEE', 'children': []}, {'value': 'Proc. SCIS', 'label': 'Proc. SCIS', 'children': []}]}, {'value': 'B会', 'label': 'B会', 'children': [{'value': 'BIBM', 'label': 'BIBM', 'children': []}, {'value': 'CogSci', 'label': 'CogSci', 'children': []}, {'value': 'EMSOFT', 'label': 'EMSOFT', 'children': []}, {'value': 'ISMB', 'label': 'ISMB', 'children': []}, {'value': 'MICCAI', 'label': 'MICCAI', 'children': []}, {'value': 'RECOMB', 'label': 'RECOMB', 'children': []}]}, {'value': 'B刊', 'label': 'B刊', 'children': [{'value': 'Bib', 'label': 'Bib', 'children': []}, {'value': 'Bioinformatics', 'label': 'Bioinformatics', 'children': []}, {'value': 'CJ', 'label': 'CJ', 'children': []}, {'value': 'FCS', 'label': 'FCS', 'children': []}, {'value': 'JAMIA', 'label': 'JAMIA', 'children': []}, {'value': 'JCST', 'label': 'JCST', 'children': []}, {'value': 'Ploscb', 'label': 'Ploscb', 'children': []}, {'value': 'TASAE', 'label': 'TASAE', 'children': []}, {'value': 'TCBB', 'label': 'TCBB', 'children': []}, {'value': 'TGARS', 'label': 'TGARS', 'children': []}, {'value': 'TITS', 'label': 'TITS', 'children': []}, {'value': 'TMI', 'label': 'TMI', 'children': []}, {'value': 'TR', 'label': 'TR', 'children': []}, {'value': 'WWW', 'label': 'WWW', 'children': []}]}]}]
+    this.selectedTag = [['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ASPLOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'DAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'EUROSYS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'FAST'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'HPCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'ISCA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'MICRO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'SC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'USENIX'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TACO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TOS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A刊', 'TPDS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CGO'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CLUSTER'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'DATE'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'FPGA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCAD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICCD'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'ICDCS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'PODC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'SPAA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'A会', 'PPoPP'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'CODES+ISSS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HiPEAC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'HOT CHIPS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B会', 'SoCC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'JPDC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'JSA'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'PC'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'PE'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TAAS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TECS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TODAES'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TRETS'], ['1.计算机体系结构、并行与分布计算、存储系统', 'B刊', 'TVLSI']],
     this.homepage = false
     if (this.show_1 === true) {
       this.activeIndex = '1'
